@@ -1,0 +1,96 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.metrics import mean_squared_error, r2_score
+from joblib import dump, load
+from google.colab import files  # Import for file upload in Colab
+
+# Step 1: Prompt the user to upload a file
+uploaded = files.upload()
+
+# Step 2: Load the dataset
+# The uploaded object is a dictionary where the key is the filename
+file_name = list(uploaded.keys())[0]
+data = pd.read_csv(file_name)
+
+# Display the columns of the dataset to help the user select the right ones
+print("Columns in the uploaded dataset:")
+print(data.columns)
+
+# Step 3: Prompt user for the column names if they differ from "X" and "y"
+x_column = input("Enter the name of the feature column (X): ")
+y_column = input("Enter the name of the target column (y): ")
+
+# Verify the columns exist and allow user to re-enter
+while x_column not in data.columns or y_column not in data.columns:
+    print(f"Error: '{x_column}' or '{y_column}' column not found in the dataset.")
+    x_column = input("Re-enter the name of the feature column (X): ")
+    y_column = input("Re-enter the name of the target column (y): ")
+
+# Step 4: Standardize the feature
+scaler = StandardScaler()
+data["X_scaled"] = scaler.fit_transform(data[[x_column]])
+
+# Step 5: Ask the user for the degree of the polynomial
+degree = int(input("Enter the degree of the polynomial (enter 1 for linear regression): "))
+
+# Polynomial transformation
+poly_features = PolynomialFeatures(degree=degree, include_bias=False)
+X_poly = poly_features.fit_transform(data[["X_scaled"]])
+
+# Step 6: Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_poly, data[y_column], test_size=0.2, random_state=0)
+
+# Step 7: Create and train the model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Cross-validation (if you want to perform it on training data only)
+cv_scores = cross_val_score(model, X_train, y_train, cv=5)
+print(f"Cross-Validation Scores: {cv_scores}")
+print(f"Average Cross-Validation Score: {np.mean(cv_scores)}")
+
+# Predict on the test set
+y_pred = model.predict(X_test)
+
+# Step 8: Calculate performance metrics
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"Mean Squared Error: {mse}")
+print(f"R-squared: {r2}")
+
+# Step 9: Visualization
+plt.figure(figsize=(10, 6))
+plt.scatter(data["X_scaled"], data[y_column], color="blue", label="Actual")
+
+# Plot linear or polynomial regression line
+if degree == 1:
+    plt.plot(data["X_scaled"], model.predict(poly_features.fit_transform(data[["X_scaled"]])), color="red", linewidth=2, label="Linear Regression")
+else:
+    plt.plot(data["X_scaled"], model.predict(poly_features.fit_transform(data[["X_scaled"]])), color="green", linewidth=2, label=f"Polynomial Regression (degree={degree})")
+
+plt.title("Actual vs Predicted Values")
+plt.xlabel(f"{x_column} (Scaled)")
+plt.ylabel(y_column)
+plt.legend()
+plt.show()
+
+# Step 10: Save the model
+model_filename = input("Enter the filename to save the model (e.g., model.joblib): ")
+if model_filename:
+    dump(model, model_filename)
+    print(f"Model saved as {model_filename}")
+
+# Step 11: Load a model (optional)
+load_model = input("Enter the filename to load a model (leave blank to skip): ")
+if load_model:
+    try:
+        model = load(load_model)
+        print(f"Model loaded from {load_model}")
+    except FileNotFoundError:
+        print(f"File {load_model} not found. Exiting.")
+        exit()
